@@ -45,9 +45,13 @@ vector<cv::Point3f> createBoardModel(int h, int w, int squareSize)
     vector<cv::Point3f> model;
 
     for(int i = 0; i < h, i++)
+    {
         for(int j = 0; j < w; j++)
-            model.push_back(
-                cv::Point3f((float)(i * squareSize), (float)(j*squareSize), 0.f));
+        {
+        model.push_back(
+            cv::Point3f((float)(i * squareSize), (float)(j*squareSize), 0.f));
+        }
+    }
 }
 
 
