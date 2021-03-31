@@ -1,5 +1,6 @@
 
 //#include <opencv2/opencv.hpp>
+#include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/opencv_modules.hpp>
 #include <opencv2/aruco/charuco.hpp>
@@ -54,7 +55,7 @@ vector<cv::Mat> readImagesFromFile(string path)
 
 vector<cv::Point3f> createBoardModel(int h, int w, int squareSize)
 {
-    vector<cv::Point3f> model;
+    vector<cv::Point3f> model;  
 
     for(int i = 0; i < h; i++)
     {
@@ -66,20 +67,22 @@ vector<cv::Point3f> createBoardModel(int h, int w, int squareSize)
     }
 }
 
-
-double calibrateCamera(vector<cv::Mat> images, boardDimensions * brd, int dictionaryId, cv::Mat cameraMatrix, cv::Mat distCoeffs)
+double calibrateCamera( vector<cv::Mat> images, 
+                        boardDimensions * brd, 
+                        int dictionaryId, 
+                        cv::Mat cameraMatrix, 
+                        cv::Mat distCoeffs, 
+                        vector<vector<vector<cv::Point2f>>> allCorners,
+                        vector<vector<int>> allIds
+                        )
 {
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::PREDEFINED_DICTIONARY_NAME(dictionaryId));
     cv::Ptr<cv::aruco::DetectorParameters> detectorParams = cv::aruco::DetectorParameters::create();
-
     cv::Ptr<cv::aruco::CharucoBoard> charucoBoard = cv::aruco::CharucoBoard::create(brd->cols, brd->rows, brd->squareSize, brd->markerLength, dictionary);
     cv::Ptr<cv::aruco::Board> board = charucoBoard.staticCast<cv::aruco::Board>();
 
     //<image<markers<4points>>>
-    vector<vector<vector<cv::Point2f>>> allCorners;
-    vector<vector<int>> allIds;
-
     for(cv::Mat img : images)
     {
         
@@ -112,7 +115,7 @@ double calibrateCamera(vector<cv::Mat> images, boardDimensions * brd, int dictio
     cv::Size imgSize = images[1].size();
 
 
-    double arucoRepErr = cv::aruco::calibrateCameraAruco(
+    /*double arucoRepErr = cv::aruco::calibrateCameraAruco(
         allCornersConcatenated,
         allIdsConcatenated,
         markersPerFrame,
@@ -122,7 +125,7 @@ double calibrateCamera(vector<cv::Mat> images, boardDimensions * brd, int dictio
         distCoeffs,
         cv::noArray(),
         cv::noArray()
-    );
+    );*/
 
     int nFrames = (int) allCorners.size();
     vector<cv::Mat> allCharucoCorners;
@@ -163,10 +166,11 @@ double calibrateCamera(vector<cv::Mat> images, boardDimensions * brd, int dictio
     );
 
     cout << "Rep Error: " << charucoRepErr << endl;
-    cout << "Aruco Rep Error: " << arucoRepErr << endl;
+    //cout << "Aruco Rep Error: " << arucoRepErr << endl;
 
     return charucoRepErr;
 }
+
 
 
 int main(int argc, char *argv[])
@@ -190,13 +194,58 @@ int main(int argc, char *argv[])
     cv::Mat leftDistCoeffs;
     cv::Mat rightCameraMatrix;
     cv::Mat rightDistCoeffs;
+    vector<vector<vector<cv::Point2f>>> pointsL;
+    vector<vector<vector<cv::Point2f>>> pointsR;
+    vector<vector<int>> idsL;
+    vector<vector<int>> idsR;
 
-    double leftReprojectionError = calibrateCamera(leftImages, brd, 1, leftCameraMatrix, leftDistCoeffs);
-    double rightReprojectionError = calibrateCamera(rightImages, brd, 1, rightCameraMatrix, rightDistCoeffs);
+    double leftReprojectionError =  calibrateCamera(leftImages, brd, 1, leftCameraMatrix, leftDistCoeffs, pointsL, idsL);
+    double rightReprojectionError = calibrateCamera(rightImages, brd, 1, rightCameraMatrix, rightDistCoeffs, pointsR, idsR);
 
-    //vector<cv::Point3f> boardModel = createBoardModel(leftImages, brd, 1);
+    for(int i = 0; i < idsL.size() && i < idsR.size(); i++)
+    {
+        for(int j = 0; j < idsL[i].size(); i++)
+        {
+            int lidx = idsL[i][j];
+            std::vector<int>::iterator ridx_pos;
+            ridx_pos = find(idsR[i].begin(), idsR[i].end(), lidx);
+            int ridx = distance(idsR[i].begin(), ridx_pos);
+            if(ridx_pos == idsR[i].end() || (pointsL[i][j].size() != pointsR[i][ridx].size()))
+            {
+                idsL[i].erase(idsL[i].begin() + j);
+                pointsL[i].erase(pointsL[i].begin() + j);
+            }
+        }
+    }
+
+    for(int i = 0; i < idsL.size() && i < idsR.size(); i++)
+    {
+        for(int j = 0; j < idsR[i].size(); i++)
+        {
+            int ridx = idsR[i][j];
+            std::vector<int>::iterator lidx_pos;
+            lidx_pos = find(idsL[i].begin(), idsL[i].end(), ridx);
+            int lidx = distance(idsL[i].begin(), lidx_pos);
+            if(lidx_pos == idsR[i].end() || (pointsR[i][j].size() != pointsL[i][lidx].size()))
+            {
+                idsR[i].erase(idsR[i].begin() + j);
+                pointsR[i].erase(pointsR[i].begin() + j);
+            }       
+        }
+    }
+
+    for(int i = 0; i < idsL.size(); i++)
+    {
+        for(int j = 0; j < idsL[i]; j++)
+        {
+
+            
+        }
+
+    }
+
+    vector<cv::Point3f> boardModel = createBoardModel(leftImages, brd, 1);
     
-
     return 0;
 }
 
